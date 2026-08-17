@@ -1,0 +1,84 @@
+# Corporate Network Security: Automated Malicious Traffic Sensor (IDS)
+
+## Executive Summary
+This project demonstrates the deployment, configuration, and validation of an open-source Network Intrusion Detection System (IDS) using Suricata integrated within a virtualized pfSense firewall ecosystem. The primary objective was to establish a resilient network perimeter capable of identifying, categorizing, and logging real-time reconnaissance and web-exploitation traffic launched from an adversarial machine (Kali Linux) targeting a corporate network infrastructure.
+
+## Network Topology & Lab Architecture
+The infrastructure is completely virtualized and isolated within a host-only virtual network chokepoint, forcing all traffic to pass through the security gateway's deep packet inspection (DPI) engine.
+
+```text
+                  [ WAN / Public Internet ]
+                             |
+                             v
+           +-----------------------------------+
+
+           |         pfSense Firewall          |
+           |   - Adapter 1 (WAN): NAT          |
+           |   - Adapter 2 (LAN): 10.10.10.1   |
+           +-----------------------------------+
+                             |
+            +----------------+----------------+
+
+            | (Isolated Layer 2 Virtual Wire) |
+            |                                 |
+            v                                 v
+   +------------------+             +--------------------+
+
+   |    Kali Linux    |             |  Windows 11 Client |
+   | Attacker Node    |             | Workstation Target |
+   | IP: 10.10.10.100 |             | IP: 10.10.10.10    |
+   +------------------+             +--------------------+
+```
+
+## Core Objectives
+1. **Network Segmentation:** Establish strict network zones using a dual-homed firewall to ensure secure egress/ingress traffic routes.
+2. **Deep Packet Inspection Engine:** Deploy and configure the Suricata binary to monitor the private LAN broadcast domain in promiscuous mode.
+3. **Threat Intelligence Feed Integration:** Synchronize the sensor with the Emerging Threats (ET) Open community rule definitions.
+4. **Adversarial Validation:** Execute controlled, multi-stage attack vectors from the Kali Linux host to test sensor fidelity and verify threat classification metrics.
+
+---
+
+## Implementation Methodology
+
+### Phase 1: Sensor Deployment & Signature Provisioning
+- Installed the Suricata engine via the pfSense package manager repository.
+- Configured the global rules settings to dynamically fetch updated indicators of compromise (IoCs) and signatures from the Emerging Threats feed.
+- Bound the Suricata monitoring service explicitly to the **LAN network interface** (`10.10.10.1`).
+- Enforced high-fidelity inspection rule categories including:
+  * `emerging-scan.rules` (Reconnaissance, sweeping, and probing)
+  * `emerging-web_server.rules` & `emerging-web_client.rules` (Web exploits and application layers)
+
+### Phase 2: Adversarial Simulation (The Attack Vector)
+To stress-test the sensor and generate verifiable logs, an aggressive, un-throttled reconnaissance routine was initiated from the Kali Linux endpoint (`10.10.10.100`):
+
+```bash
+nmap -sS -A -T4 10.10.10.1
+```
+*Simulation Mechanics:* This directive forced a stealth TCP SYN scan (`-sS`) bundled with aggressive OS fingerprinting, script scanning, and version enumeration (`-A`) operating at a rapid timing profile (`-T4`). This generates highly anomalous packet headers and service probes designed to trigger boundary defenses.
+
+---
+
+## Technical Evidence & Detection Analysis
+
+Upon launching the attack vector, the Suricata detection engine successfully intercepted the raw packet bursts, evaluated them against active signature hashes, and generated real-time security alerts.
+
+### Security Analyst Dashboard Evidence
+*(Replace the placeholder below with your screenshot showing the rows of alerts inside your pfSense GUI)*
+
+![Suricata Alert Log Verification](https://placehold.co)
+
+### Log Breakdown and Indicator Analysis
+Analyzing the generated metadata revealed the following critical indicators:
+- **Threat Actor Mapping:** The sensor accurately tracked all anomalous network packets back to the malicious source IP address: `10.10.10.100`.
+- **Signature Classifications Triggered:**
+  * *[Tip: Look at your alerts screen and type one of your exact alert names here, e.g., ET SCAN Potential SSH Scan]*
+  * *[Type another exact alert name here, e.g., Generic Scan Activity]*
+- **Severity Context:** The scanning signatures correctly triggered "High Priority" alert statuses due to the unnatural frequency and flag structures of the incoming TCP packets.
+
+---
+
+## Defense-in-Depth & Hardening Recommendations
+Based on the raw data audited during this project, the following hardening measures should be implemented to advance the security posture of this network:
+1. **Transition from IDS to IPS:** Move Suricata from passive "Detection" to an active "Intrusion Prevention System" (IPS) utilizing Legacy Block Mode or Inline Mode to automatically drop connection states from verified scanning hosts.
+2. **Endpoint Defense Optimization:** Configure the Windows Defender policy on the internal Windows 11 target to drop unsolicited inbound ICMP echo requests and stealth TCP probes, blinding network-mapping tools.
+3. **Log Centralization:** Configure a Syslog forwarder to ship pfSense and Suricata security logs into a centralized Security Information and Event Management (SIEM) dashboard (e.g., Splunk or Elastic) for advanced telemetry, tracking, and metric correlation.
